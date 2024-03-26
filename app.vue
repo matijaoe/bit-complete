@@ -10,9 +10,11 @@ const incompleteSeedArr = computed({
 	},
 })
 
-// 23 words
-const seedphrase = ref<string[]>([])
-const seedphraseArr = computed(() => seedphrase.value.join(' '))
+const loading = ref(false)
+
+// 24 words
+const seedWords = ref<string[]>([])
+const seedphrase = computed(() => seedWords.value.join(' '))
 
 // first 23 words
 const generateIncompleteSeed = async () => {
@@ -50,20 +52,15 @@ const calculateLastWord = async (words: string[]) => {
 	const wordsDecimal = wordsBinary.map((chunk) => chunk.join('')).map(bin2dec)
 
 	const lastWord = wordlistEn[wordsDecimal[23]]
-	const seedphrase = words.concat(lastWord)
 
-	return {
-		lastWord,
-		seedphrase,
-	}
+	return lastWord
 }
 
 const calculateSeed = async () => {
-	incompleteSeed.value = (await generateIncompleteSeed()).join(' ')
-	console.log('incompleteSeedStr.value :', incompleteSeed)
-
-	const res = await calculateLastWord(incompleteSeedArr.value)
-	seedphrase.value = res.seedphrase
+	loading.value = true
+	const lastWord = await calculateLastWord(incompleteSeedArr.value)
+	loading.value = false
+	seedWords.value = [...incompleteSeedArr.value, lastWord]
 }
 
 const isInputValid = () => {
@@ -77,15 +74,11 @@ const isInputValid = () => {
 		<main class="container-fluid max-w-8xl py-8">
 			<div class="flex items-end gap-2 w-full">
 				<div class="grow">
-					<label
-						for="incomplete-words-input"
-						class="text-sm"
-					>
-						Fill in your first 23 words (space separated)
-						<span>{{ incompleteSeedArr.length }}</span>
+					<label for="incomplete-words-input">
+						Fill in your first 23 words
 					</label>
 					<input
-						class="mb-0!"
+						class="mb-0! font-mono text-sm"
 						id="incomplete-words-input"
 						pattern="^(\b\w+\b\s?){23}$"
 						:aria-invalid="
@@ -114,13 +107,20 @@ const isInputValid = () => {
 			</div>
 
 			<div
-				v-if="seedphraseArr"
+				v-if="seedphrase"
 				class="mt-4"
 			>
 				<input
+					class="text-sm font-mono"
 					type="text"
-					:value="seedphraseArr"
+					:value="seedphrase"
 				/>
+
+				<div class="mt-2 text-xl text-right">
+					<p>
+						24th word is <strong>{{ seedWords.at(-1) }}</strong>
+					</p>
+				</div>
 			</div>
 		</main>
 	</Body>
@@ -128,5 +128,4 @@ const isInputValid = () => {
 
 <style lang="postcss">
 @import url('@picocss/pico/css/pico.css');
-
 </style>
