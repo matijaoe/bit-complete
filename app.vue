@@ -114,6 +114,7 @@ const isInputValid = () => {
 					class="text-sm font-mono"
 					type="text"
 					:value="seedphrase"
+					readonly
 				/>
 
 				<div class="mt-2 text-xl text-right">
