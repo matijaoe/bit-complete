@@ -114,7 +114,7 @@ watch(isInputValid, (valid) => {
 				<div class="grow">
 					<label for="incomplete-words-input"> Your first 23 words </label>
 					<textarea
-						class="text-sm leading-loose"
+						class="text-sm leading-loose resize-none"
 						id="incomplete-words-input"
 						pattern="^(\b\w+\b\s?){23}$"
 						:aria-invalid="
@@ -154,7 +154,7 @@ watch(isInputValid, (valid) => {
 				>
 					<label for="incomplete-words-input">Final seedphrase</label>
 					<textarea
-						class="text-sm leading-loose"
+						class="text-sm leading-loose resize-none"
 						type="text"
 						:value="seedphrase"
 						readonly
