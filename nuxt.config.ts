@@ -4,11 +4,4 @@ export default defineNuxtConfig({
     '@unocss/nuxt',
   ],
   devtools: { enabled: true },
-  unocss: {
-    theme: {
-      fontFamily: {
-        mono: 'Space Mono, sans-serif',
-      },
-    }
-  }
 })
