@@ -2,11 +2,11 @@
 import { wordlistEn } from './wordlist/bip39-en'
 
 // 23 words
-const incompleteSeed = ref<string>('')
-const incompleteSeedArr = computed({
-	get: () => incompleteSeed.value?.split(/\s+/).filter(Boolean) || [],
+const incompleteSeedphrase = ref<string>('')
+const incompleteSeedWords = computed({
+	get: () => incompleteSeedphrase.value?.split(/\s+/).filter(Boolean) || [],
 	set: (val: string[]) => {
-		incompleteSeed.value = val.join(' ')
+		incompleteSeedphrase.value = val.join(' ')
 	},
 })
 
@@ -34,7 +34,7 @@ const generateIncompleteSeed = async () => {
 }
 
 const onGenerateIncompleteWordsHandler = async () => {
-	incompleteSeedArr.value = await generateIncompleteSeed()
+	incompleteSeedWords.value = await generateIncompleteSeed()
 }
 
 // 23 word array
@@ -48,8 +48,10 @@ const calculateLastWord = async (words: string[]) => {
 
 	const seedphraseBinary = `${word23AsBinary}${checksumBits}`
 
-	const wordsBinary = chunk(seedphraseBinary.split(''), 11)
-	const wordsDecimal = wordsBinary.map((chunk) => chunk.join('')).map(bin2dec)
+	const wordsBinary = chunk(seedphraseBinary.split(''), 11).map((chunk) =>
+		chunk.join('')
+	)
+	const wordsDecimal = wordsBinary.map(bin2dec)
 
 	const lastWord = wordlistEn[wordsDecimal[23]]
 
@@ -58,116 +60,144 @@ const calculateLastWord = async (words: string[]) => {
 
 const calculateSeed = async () => {
 	loading.value = true
-	const lastWord = await calculateLastWord(incompleteSeedArr.value)
+	const lastWord = await calculateLastWord(incompleteSeedWords.value)
 	loading.value = false
-	seedWords.value = [...incompleteSeedArr.value, lastWord]
+	seedWords.value = [...incompleteSeedWords.value, lastWord]
 }
 
-const isInputValid = () => {
+const isInputValid = computed(() => {
 	const rgx = /^(\b\w+\b\s?){23}$/g
-	const containsInvalidWords = incompleteSeedArr.value.some(
+	const containsInvalidWords = incompleteSeedWords.value.some(
 		(word) => !wordlistEn.includes(word)
 	)
-	const isComplete = rgx.test(incompleteSeed.value)
+	const isComplete = rgx.test(incompleteSeedphrase.value)
 	return !containsInvalidWords && isComplete
-}
+})
 
 const clear = () => {
-	incompleteSeedArr.value = []
+	incompleteSeedWords.value = []
 	seedWords.value = []
 }
+
+watch(isInputValid, (valid) => {
+	if (!valid) {
+		seedWords.value = []
+	}
+})
 </script>
 
 <template>
 	<Body>
-		<main class="container-fluid max-w-5xl py-8">
-			<div class="text-xs mb-10">
-				<details>
-					<summary>Why?</summary>
-					<div>
-						<p>
-							In a BIP39 seed phrase, not every word can be used as a final
-							word. The last word serves as a kind of "checksum", ensuring that
-							the seed phrase follows the rules laid out in the BIP39 standard.
-						</p>
+		<div class="min-h-screen flex flex-col justify-between">
+			<main class="container-fluid max-w-5xl py-8 grow">
+				<div class="text-xs mb-10">
+					<details>
+						<summary>Why?</summary>
+						<div>
+							<p>
+								In a BIP39 seed phrase, not every word can be used as a final
+								word. The last word serves as a kind of "checksum", ensuring
+								that the seed phrase follows the rules laid out in the BIP39
+								standard.
+							</p>
 
+							<p>
+								In case of 24-word seedphrase, checksum is calculated by hashing
+								the first 23 words along with the first 3 bytes of the 24th
+								word, taking the first 8 bits of that hash and appending them to
+								first 3 bits, in order to find one of the valid 24th words.
+							</p>
+						</div>
+					</details>
+				</div>
+
+				<div class="grow">
+					<label for="incomplete-words-input"> Your first 23 words </label>
+					<textarea
+						class="text-sm leading-loose"
+						id="incomplete-words-input"
+						pattern="^(\b\w+\b\s?){23}$"
+						:aria-invalid="
+							incompleteSeedphrase.trim() && !isInputValid ? true : undefined
+						"
+						type="text"
+						v-model="incompleteSeedphrase"
+					/>
+				</div>
+
+				<div class="flex justify-end gap-3 mt-3">
+					<button
+						v-if="!incompleteSeedWords.length"
+						class="secondary"
+						@click="onGenerateIncompleteWordsHandler"
+					>
+						Generate
+					</button>
+					<button
+						v-else
+						class="secondary"
+						@click="clear"
+					>
+						Clear
+					</button>
+					<button
+						:disabled="!isInputValid"
+						@click="calculateSeed"
+					>
+						Calculate
+					</button>
+				</div>
+
+				<div
+					v-if="seedphrase"
+					class="mt-4"
+				>
+					<label for="incomplete-words-input">Final seedphrase</label>
+					<textarea
+						class="text-sm leading-loose"
+						type="text"
+						:value="seedphrase"
+						readonly
+					/>
+
+					<div class="mt-3 text-xl text-left">
 						<p>
-							In case of 24-word seedphrase, checksum is calculated by hashing
-							the first 23 words along with the first 3 bytes of the 24th word,
-							and then taking the first 8 bits of that hash, appended them to
-							first 3 bits, to find one of the valid 24th words.
+							24th word:
+							<strong
+								class="underline decoration-pink-500 decoration-offset-3"
+								>{{ seedWords.at(-1) }}</strong
+							>
 						</p>
 					</div>
-				</details>
-			</div>
-
-			<div class="grow">
-				<label for="incomplete-words-input">
-					Fill in your first 23 words
-				</label>
-				<textarea
-					class="mb-0! font-mono text-sm res"
-					id="incomplete-words-input"
-					pattern="^(\b\w+\b\s?){23}$"
-					:aria-invalid="
-						incompleteSeed.trim() && !isInputValid() ? true : undefined
-					"
-					type="text"
-					v-model="incompleteSeed"
-				/>
-			</div>
-
-			<div class="flex justify-end gap-3 mt-3">
-				<button
-					v-if="!incompleteSeedArr.length"
-					class="secondary"
-					@click="onGenerateIncompleteWordsHandler"
-				>
-					Generate
-				</button>
-				<button
-					v-else
-					class="secondary"
-					@click="clear"
-				>
-					Clear
-				</button>
-				<button
-					:disabled="incompleteSeedArr.length !== 23"
-					@click="calculateSeed"
-				>
-					Calculate
-				</button>
-			</div>
-
-			<div
-				v-if="seedphrase"
-				class="mt-4"
-			>
-				<label for="incomplete-words-input">Final seedphrase</label>
-				<textarea
-					class="text-sm font-mono c"
-					type="text"
-					:value="seedphrase"
-					readonly
-				/>
-
-				<div class="mt-3 text-xl text-left">
-					<p>
-						24th word:
-						<strong class="underline decoration-pink-500 decoration-offset-3">{{
-							seedWords.at(-1)
-						}}</strong>
-					</p>
 				</div>
-			</div>
-		</main>
+			</main>
+
+			<footer class="mt-auto py-8 text-xs text-center text-muted">
+				by
+				<NuxtLink
+					to="https://matijao.com"
+					class="contrast"
+				>
+					matija</NuxtLink
+				>
+				on
+				<NuxtLink
+					to="https://github.com/matijao/bitcoin-seed-finisher"
+					class="contrast"
+					>github</NuxtLink
+				>
+			</footer>
+		</div>
 	</Body>
 </template>
 
 <style lang="postcss">
 @import url('@picocss/pico/css/pico.css');
 @import url('https://fonts.cdnfonts.com/css/martian-mono');
+
+.text-muted {
+	color: #7b8495;
+}
 
 body {
 	font-family: 'Martian Mono', ui-monospace, Menlo, Monaco, 'Cascadia Mono',
