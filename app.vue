@@ -1,194 +1,184 @@
 <script lang="ts" setup>
 import { wordlistEn } from './wordlist/bip39-en'
 
-// 23 words
-const incompleteSeedphrase = ref<string>('')
-const incompleteSeedWords = computed({
-	get: () => incompleteSeedphrase.value?.split(/\s+/).filter(Boolean) || [],
-	set: (val: string[]) => {
-		incompleteSeedphrase.value = val.join(' ')
-	},
+// Incomplete seed phrase (11 or 23 words)
+const partialSeedPhrase = ref<string>('')
+const partialSeedWords = computed({
+  get: () => partialSeedPhrase.value?.split(/\s+/).filter(Boolean) || [],
+  set: (val: string[]) => {
+    partialSeedPhrase.value = val.join(' ')
+  },
 })
 
-const loading = ref(false)
-
-// 24 words
+// Full seed phrase (12 or 24 words)
 const seedWords = ref<string[]>([])
 const seedphrase = computed(() => seedWords.value.join(' '))
 
-// first 23 words
-const generateIncompleteSeed = async () => {
-	const randomBits = Array.from({ length: 253 }, () => secureRandom(2)) // 253 bits
+const checksumWords = ref<string[]>([])
+const selectedChecksumWord = ref<string>('')
 
-	const bitsString = randomBits.join('')
-
-	const wordsAsBinary = chunk(bitsString.split(''), 11).map((chunk) =>
-		chunk.join('')
-	)
-
-	const decimalChunks23 = wordsAsBinary.map(bin2dec)
-
-	const words = decimalChunks23.map((dec) => wordlistEn[dec])
-
-	return words
+const setRandomChecksumWord = async () => {
+  selectedChecksumWord.value = await getRandomItem(checksumWords.value)
 }
 
-const onGenerateIncompleteWordsHandler = async () => {
-	incompleteSeedWords.value = await generateIncompleteSeed()
+const changeChecksumWord = async () => {
+  // call setRandomChecksumWord until we get a different word
+  const word = await getRandomItem(checksumWords.value)
+  // ensure we get a different word
+  if (word !== selectedChecksumWord.value) {
+    selectedChecksumWord.value = word
+  } else {
+    changeChecksumWord()
+  }
 }
 
-// 23 word array
-const calculateLastWord = async (words: string[]) => {
-	const words23AsDecimals = words.map((word) => wordlistEn.indexOf(word))
-	const word23AsBinary = words23AsDecimals.map((c) => dec2bin(c, 11)).join('')
+watch(
+  checksumWords,
+  async (_words) => {
+    await setRandomChecksumWord()
+  },
+  { immediate: true }
+)
 
-	const hashed = await sha256bitsMode(word23AsBinary)
-	const checksum = hashed.slice(0, 2).split('')
-	const checksumBits = checksum.map((n) => hex2bin(n, 4)).join('')
+watch(
+  selectedChecksumWord,
+  (word) => {
+    seedWords.value = [...partialSeedWords.value, word]
+  },
+  { immediate: true }
+)
 
-	const seedphraseBinary = `${word23AsBinary}${checksumBits}`
+const loading = ref(false)
 
-	const wordsBinary = chunk(seedphraseBinary.split(''), 11).map((chunk) =>
-		chunk.join('')
-	)
-	const wordsDecimal = wordsBinary.map(bin2dec)
+const generateIncompleteSeed = async (len: 11 | 23) => {
+  const bitsNeeded = len * 11
+  const entropy = Array.from({ length: bitsNeeded }, () => secureRandom(2))
 
-	const lastWord = wordlistEn[wordsDecimal[23]]
+  const wordsBits = chunk(entropy, 11).map((chunk) => chunk.join(''))
 
-	return lastWord
+  const wordsDecimal = wordsBits.map(bin2dec)
+
+  const words = wordsBits.map((wordBits) => {
+    const wordDec = bin2dec(wordBits)
+    return wordlistEn[wordDec]
+  })
+
+  return words
+}
+
+const onGenerateIncompleteWordsHandler = async (len: 11 | 23) => {
+  partialSeedWords.value = await generateIncompleteSeed(len)
 }
 
 const calculateSeed = async () => {
-	loading.value = true
-	const lastWord = await calculateLastWord(incompleteSeedWords.value)
-	loading.value = false
-	seedWords.value = [...incompleteSeedWords.value, lastWord]
+  loading.value = true
+  checksumWords.value = await calculateChecksumWords(partialSeedPhrase.value)
+  loading.value = false
 }
 
 const isInputValid = computed(() => {
-	const rgx = /^(\b\w+\b\s?){23}$/g
-	const containsInvalidWords = incompleteSeedWords.value.some(
-		(word) => !wordlistEn.includes(word)
-	)
-	const isComplete = rgx.test(incompleteSeedphrase.value)
-	return !containsInvalidWords && isComplete
+  const rgx = /^(\b\w+\b\s?){11,23}$/g
+  const containsInvalidWords = partialSeedWords.value.some((word) => !wordlistEn.includes(word))
+  const isComplete = rgx.test(partialSeedPhrase.value)
+  return !containsInvalidWords && isComplete
 })
 
 const clear = () => {
-	incompleteSeedWords.value = []
-	seedWords.value = []
+  partialSeedWords.value = []
+  seedWords.value = []
+  checksumWords.value = []
 }
 
 watch(isInputValid, (valid) => {
-	if (!valid) {
-		seedWords.value = []
-	}
+  if (!valid) {
+    seedWords.value = []
+  }
 })
+
+const selectAll = (e: MouseEvent) => {
+  const target = e.target as HTMLTextAreaElement
+  target.select()
+}
 </script>
 
 <template>
-	<Body>
-		<div class="min-h-screen flex flex-col justify-between">
-			<main class="container-fluid max-w-5xl py-8 grow">
-				<div class="text-xs mb-10">
-					<details>
-						<summary>Why?</summary>
-						<div>
-							<p>
-								In a BIP39 seed phrase, not every word can be used as a final
-								word. The last word serves as a kind of "checksum", ensuring
-								that the seed phrase follows the rules laid out in the BIP39
-								standard.
-							</p>
+  <Body>
+    <div class="min-h-screen flex flex-col justify-between">
+      <main class="container-fluid max-w-5xl py-8 grow">
+        <div class="text-xs mb-8">
+          <details>
+            <summary>Why?</summary>
+            <div>
+              <p>
+                In a BIP39 seed phrase, not every word can be used as a final word. The last word serves as a kind of
+                <em>checksum</em>, ensuring that the seed phrase follows the rules laid out in the BIP39 standard.
+              </p>
 
-							<p>
-								In case of 24-word seedphrase, checksum is calculated by hashing
-								the first 23 words along with the first 3 bytes of the 24th
-								word, taking the first 8 bits of that hash and appending them to
-								first 3 bits, in order to find one of the valid 24th words.
-							</p>
-						</div>
-					</details>
-				</div>
+              <p>
+                In case of 24-word seedphrase, checksum is calculated by hashing the bits of first 23 words along with
+                the first 3 bits of the 24th word, in order to find one of the valid checksum words.
+              </p>
+            </div>
+          </details>
+        </div>
 
-				<div class="grow">
-					<label for="incomplete-words-input"> Your first 23 words </label>
-					<textarea
-						class="text-sm leading-loose resize-none"
-						id="incomplete-words-input"
-						pattern="^(\b\w+\b\s?){23}$"
-						:aria-invalid="
-							incompleteSeedphrase.trim() && !isInputValid ? true : undefined
-						"
-						type="text"
-						v-model="incompleteSeedphrase"
-					/>
-				</div>
+        <div class="grow">
+          <label for="incomplete-words-input"> Your first 11 or 23 words</label>
+          <textarea
+            class="text-sm leading-loose resize-none"
+            id="incomplete-words-input"
+            pattern="^(\b\w+\b\s?){11,23}$"
+            :aria-invalid="partialSeedPhrase.trim() && !isInputValid ? true : undefined"
+            type="text"
+            v-model="partialSeedPhrase"
+            @dblclick="selectAll"
+          />
+        </div>
 
-				<div class="flex justify-end gap-3 mt-3">
-					<button
-						v-if="!incompleteSeedWords.length"
-						class="secondary"
-						@click="onGenerateIncompleteWordsHandler"
-					>
-						Generate
-					</button>
-					<button
-						v-else
-						class="secondary"
-						@click="clear"
-					>
-						Clear
-					</button>
-					<button
-						:disabled="!isInputValid"
-						@click="calculateSeed"
-					>
-						Calculate
-					</button>
-				</div>
+        <div class="flex justify-end gap-3 mt-3">
+          <button v-if="!partialSeedWords.length" class="secondary" @click="onGenerateIncompleteWordsHandler(11)">
+            Generate (11)
+          </button>
 
-				<div
-					v-if="seedphrase"
-					class="mt-4"
-				>
-					<label for="incomplete-words-input">Final seedphrase</label>
-					<textarea
-						class="text-sm leading-loose resize-none"
-						type="text"
-						:value="seedphrase"
-						readonly
-					/>
+          <button v-if="!partialSeedWords.length" class="secondary" @click="onGenerateIncompleteWordsHandler(23)">
+            Generate (23)
+          </button>
+          <button v-else class="secondary" @click="clear">Clear</button>
+          <button :disabled="!isInputValid" @click="calculateSeed">Calculate</button>
+        </div>
 
-					<div class="mt-3 text-xl text-left">
-						<p>
-							24th word:
-							<strong
-								class="underline decoration-pink-500 decoration-offset-3"
-								>{{ seedWords.at(-1) }}</strong
-							>
-						</p>
-					</div>
-				</div>
-			</main>
+        <div v-if="seedphrase" class="mt-2">
+          <label for="complete-words-input">Complete seedphrase</label>
+          <textarea
+            id="complete-words-input"
+            class="text-sm leading-loose resize-none"
+            type="text"
+            :value="seedphrase"
+            readonly
+            @dblclick="selectAll"
+          />
 
-			<footer class="mt-auto py-8 text-xs text-center text-muted">
-				by
-				<NuxtLink
-					to="https://matijao.com"
-					class="contrast"
-				>
-					matija</NuxtLink
-				>
-				on
-				<NuxtLink
-					to="https://github.com/matijao/bitcoin-seed-finisher"
-					class="contrast"
-					>github</NuxtLink
-				>
-			</footer>
-		</div>
-	</Body>
+          <div class="mt-12">
+            <label for="checksum-words">Checksum words</label>
+
+            <div class="flex items-center gap-4">
+              <select id="checksum-words" name="checksum-words" required v-model="selectedChecksumWord" class="mb-0">
+                <option v-for="word in checksumWords" :value="word" :key="word">{{ word }}</option>
+              </select>
+              <button class="secondary" @click="changeChecksumWord">Change</button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer class="mt-auto py-8 text-xs text-center text-muted">
+        by
+        <NuxtLink to="https://matijao.com" class="contrast"> matija</NuxtLink>
+        on
+        <NuxtLink to="https://github.com/matijao/bit-complete" class="contrast">github</NuxtLink>
+      </footer>
+    </div>
+  </Body>
 </template>
 
 <style lang="postcss">
@@ -196,12 +186,11 @@ watch(isInputValid, (valid) => {
 @import url('https://fonts.cdnfonts.com/css/martian-mono');
 
 .text-muted {
-	color: #7b8495;
+  color: #7b8495;
 }
 
 body {
-	font-family: 'Martian Mono', ui-monospace, Menlo, Monaco, 'Cascadia Mono',
-		'Segoe UI Mono', 'Roboto Mono', 'Oxygen Mono', 'Ubuntu Monospace',
-		'Source Code Pro', 'Fira Mono', 'Droid Sans Mono', 'Courier New', monospace;
+  font-family: 'Martian Mono', ui-monospace, Menlo, Monaco, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono',
+    'Oxygen Mono', 'Ubuntu Monospace', 'Source Code Pro', 'Fira Mono', 'Droid Sans Mono', 'Courier New', monospace;
 }
 </style>
