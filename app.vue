@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { wordlistEn } from './wordlist/bip39-en'
 
-// Incomplete seed phrase (11 or 23 words)
+// Incomplete seed phrase (without last word)
 const partialSeedPhrase = ref<string>('')
 const partialSeedWords = computed({
   get: () => partialSeedPhrase.value?.split(/\s+/).filter(Boolean) || [],
@@ -10,7 +10,6 @@ const partialSeedWords = computed({
   },
 })
 
-// Full seed phrase (12 or 24 words)
 const seedWords = ref<string[]>([])
 const seedphrase = computed(() => seedWords.value.join(' '))
 
@@ -77,7 +76,7 @@ const calculateSeed = async () => {
 }
 
 const isInputValid = computed(() => {
-  const rgx = /^(\b\w+\b\s?){11,23}$/g
+  const rgx = /^((\b\w+\b\s?){11}|(\b\w+\b\s?){14}|(\b\w+\b\s?){17}|(\b\w+\b\s?){19}|(\b\w+\b\s?){23})$/g
   const containsInvalidWords = partialSeedWords.value.some((word) => !wordlistEn.includes(word))
   const isComplete = rgx.test(partialSeedPhrase.value)
   return !containsInvalidWords && isComplete
@@ -123,7 +122,7 @@ const selectAll = (e: MouseEvent) => {
         </div>
 
         <div class="grow">
-          <label for="incomplete-words-input"> Your first 11 or 23 words</label>
+          <label for="incomplete-words-input"> Your seedphrase (without last word)</label>
           <textarea
             class="text-sm leading-loose resize-none"
             id="incomplete-words-input"
@@ -135,6 +134,7 @@ const selectAll = (e: MouseEvent) => {
           />
         </div>
 
+        <!-- TODO: enable working with 20, 18 and 15 words seedphrases in UI - it also supports them -->
         <div class="flex justify-end gap-3 mt-3">
           <button v-if="!partialSeedWords.length" class="secondary" @click="onGenerateIncompleteWordsHandler(11)">
             Generate (11)
