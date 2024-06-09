@@ -43,7 +43,8 @@ export const hex2bin = (hex: string) => {
 }
 
 // Function to convert a string of binary digits to a Uint8Array of bytes
-// similar to -0 mode in shasum, although it does not provide the same exact cash, checksum is valid (although using different word)
+// Same as running this in terminal:
+// echo <YOUR_HASH> | shasum -a 256 -0
 export const binaryStringToBytes = (binaryString: string) => {
   const bytes = []
   for (let i = 0; i < binaryString.length; i += 8) {
@@ -94,8 +95,13 @@ export const calculateChecksumWords = async (stringSeedPhrase: string) => {
 
   const seedPhrase = stringSeedPhrase.toLowerCase().trim().split(' ')
 
-  if (seedPhrase.length !== 11 && seedPhrase.length !== 23) {
-    throw new Error('Invalid number of seed phrase words. Must be 11 or 23.')
+  const SUPPORTED_SEEDPHRASE_LENGTH = [12, 15, 18, 20, 24]
+  const partialSeedPhraseLengths = SUPPORTED_SEEDPHRASE_LENGTH.map((len) => len - 1)
+
+  if (!partialSeedPhraseLengths.includes(seedPhrase.length)) {
+    throw new Error(
+      `Invalid number of seed phrase words. Supported seedphrase formats: ${SUPPORTED_SEEDPHRASE_LENGTH.join(', ')}.`
+    )
   }
 
   // Get the decimal representation of the incomplete words
@@ -114,6 +120,7 @@ export const calculateChecksumWords = async (stringSeedPhrase: string) => {
   }
 
   // 23 words | 11 words
+  // https://github.com/BlueWallet/BlueWallet/blob/master/blue_modules/checksumWords.js#L28-L30
   const checksumLengthBits = (concatBitsLength + BITS_PER_WORD) / 33 // 8 | 4
   const entropyLengthBits = concatBitsLength + BITS_PER_WORD - checksumLengthBits // 256 | 128
   const varyingLengthBits = entropyLengthBits - concatBitsLength // 3 | 7
