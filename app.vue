@@ -175,7 +175,7 @@ const selectAll = (e: MouseEvent) => {
         by
         <NuxtLink to="https://matijao.com" class="contrast"> matija</NuxtLink>
         on
-        <NuxtLink to="https://github.com/matijao/bit-complete" class="contrast">github</NuxtLink>
+        <NuxtLink to="https://github.com/matijaoe/bit-complete" class="contrast">github</NuxtLink>
       </footer>
     </div>
   </Body>
